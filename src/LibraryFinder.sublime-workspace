@@ -1,0 +1,442 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "LibraryFinder.py",
+			"settings":
+			{
+				"buffer_size": 2271,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "importDetection.py",
+			"settings":
+			{
+				"buffer_size": 3160,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"contents": "'''\nMain program for heuristic detection\n@author Danielle Gonzalez\n    using code derived from Andrew Popovich's TestCaseFinder \n'''\nfrom util import *\nfrom heuristicDetection import *\nfrom pathlib import Path\nimport codecs\nimport threading\nimport concurrent.futures\nimport os\n\ndef main():\n    #Get the associaton between the patterns & identifying keywords (heuristics)\n    keywordLookup = lookupGenerator(\"E:/Projects/TestCaseRecommend/HeuristicFinder/Resources/keywords.txt\") #@author Andew Popovich\n    \n    # Write the output of the Finder into a csv file\n    output = \"E:/Projects/TestCaseRecommend/HeuristicFinder/Output/group4-results.csv\"\n    ptrnfile = codecs.open(output, \"w\", \"utf-8\")\n    ptrnfile.write(\"Pattern,Project,File\\n\")\n    ptrnfile.close()\n    \n    # create a file for any exceptions which occur during the search\n    exceptionOutput = \"E:/Projects/TestCaseRecommend/HeuristicFinder/Output/group4-exceptions.txt\"\n    exceptionFile = open(exceptionOutput, \"w\", encoding=\"utf-8\")\n    exceptionFile.close()\n    \n    # declare the directory containing all of the projects to be searched \n    allProjects = Path(\"//itsnas02.main.ad.rit.edu/gccis-casci/repository/Repository/data/sourcerer/tera/repo\")\n    MAX_PROJECTS = 0\n    \n    allResults = resultFormatter()\n    lock = threading.Lock()\n\n    #beginAnalysis(MAX_PROJECTS, allResults, allProjects, keywordLookup, output, exceptionOutput)\n    analyzeNetwork(MAX_PROJECTS, allResults, allProjects, keywordLookup, output, exceptionOutput)\n\ndef beginAnalysis(MAX_PROJECTS, allResults, allProjects, keywordLookup, output, exceptionOutput):\n    #thread pool\n    testFiles = obtainTestFiles(\"E:/Projects/TestCaseRecommend/TestCaseFinder/Output/testFiles-group3-1-4.csv\")\n\n    print(\"Begin Analysis- # of test files: \" + str(len(testFiles)))\n    \n    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:\n        futures = []\n        count = 0\n        \n        #Add projects to the thread pool  \n        for proj in allProjects.iterdir():\n            if (not isMax(MAX_PROJECTS, count)) and proj.is_dir(): \n                futures += [executor.submit(detect().heuristicsSearch, proj, keywordLookup, testFiles)]\n                count+=1\n        \n        counter = 0\n        #Combine all results as the thread complete\n        for aFuture in concurrent.futures.as_completed(futures):\n            try:\n                patternsFound = aFuture.result()\n            except Exception as exc:\n                print('Fatal exception in thread: ' + str(type(exc)) + \": \" + str(exc.args) + \" - \" + str(exc))\n                writeException(exceptionOutput, str(exc))\n            else:\n                try:\n                    for pattern in patternsFound.keys():\n                        allResults[pattern] = patternsFound[pattern]\n                    counter+=1\n                    if isMax(MAX_PROJECTS, counter):\n                        print(\"Generating output:\")\n                        writeToFile(output, allResults)\n                        break\n                    if counter % 100 == 0:\n                        print(\"Outputting 100 results:\")\n                        #print(allResults)\n                        writeToFile(output, allResults)\n                        allResults = resultFormatter()\n                except Exception as exc:\n                    print('Generated an exception during processing: ' + str(exc))\n                    writeException(exceptionOutput, str(exc))\n\n    print(\"\\nThe results have been successfully written to \"+ output)\n\n# Author Andrew Popovich\ndef analyzeNetwork(MAX_PROJECTS, allResults, allProjects, keywordLookup, output, exceptionOutput):\n    #Create a thread pool to help process the projects\n    testFiles = obtainTestFiles(\"E:/Projects/TestCaseRecommend/TestCaseFinder/Output/testFiles-group4-1-4.csv\")\n    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:\n        futures = []\n        count = 0\n        print(\"Begin Test Case Extraction\")\n        for mainNum in range(2,59):\n            for subNum in range(0,101):\n                rootDir = Path(str(allProjects)+\"/\"+str(mainNum)+\"/\"+str(subNum)+\"/content\")\n                if rootDir.exists():\n                    #Submit MAX_PROJECTS requests to the thread pool for processing     \n                    if (not isMax(MAX_PROJECTS, count)) and rootDir.is_dir():\n                        futures += [executor.submit(detect().heuristicsSearch, rootDir, keywordLookup, testFiles)]\n                        count+=1\n                    \n        counter = 0\n        #Combine all results as the thread complete\n        for aFuture in concurrent.futures.as_completed(futures):\n            try:\n                testFiles = aFuture.result()\n                print(counter)\n            except Exception as exc:\n                print('Generated a fatal exception in thread processProject: ' + str(exc))\n                writeException(exceptionOutput, str(exc))\n            else:\n                try:\n                    for pattern in patternsFound.keys():\n                        allResults[pattern] = patternsFound[pattern]\n                    counter+=1\n                    if isMax(MAX_PROJECTS, counter):\n                        print(\"Generating output:\")\n                        writeToFile(output, allResults)\n                        break\n                    if counter % 100 == 0:\n                        print(\"Outputting 100 results:\")\n                        #print(allResults)\n                        writeToFile(output, allResults)\n                        allResults = resultFormatter()\n                except Exception as exc:\n                    print('Generated an exception during processing: ' + str(exc))\n                    writeException(exceptionOutput, str(exc))\n\n    print(\"\\nThe results have been successfully written to \"+ output)\n\ndef isMax(numMax, count):\n    if numMax != 0 and count >= numMax:\n        return True\n    return False\n\ndef writeToFile(output, finalResults):\n    theOutput = codecs.open(output, \"a\", encoding=\"utf-8\")\n    for pattern,data in finalResults.items():\n        try:\n            for d in data: #data is the dictionary of files & projects\n                theOutput.write(str(pattern) + \",\" + str(d[0]) + \",\" + str(d[1]) + \"\\n\")\n        except Exception as ex:\n            print(\"Error occurred during output: \" + str(ex))\n    theOutput.close()\n\ndef writeException(file, exception):\n    file = open(file, \"a\", encoding=\"utf-8\")\n    file.write(exception+\"\\n\\n\")\n    file.close()\n\ndef resultFormatter():\n    \"\"\"\n    Result Formatter\n    Creates a dictionary where the key is the pattern name\n    and the value is a list of all files containing that pattern \n\n    There is one list per pattern. More patterns will be added as \n    their heuristics are added.\n    \"\"\"\n    theResults = {}\n    theResults['assert'] = []\n    theResults['simple'] = []\n    theResults['teardown'] = []\n    theResults['perClass'] = []\n    return theResults\n\nmain()\n\n\n",
+			"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/heuristicFinder.py",
+			"file_size": 6970,
+			"file_write_time": 131069432601936377,
+			"settings":
+			{
+				"buffer_size": 6970,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/heuristicDetection.py",
+			"settings":
+			{
+				"buffer_size": 8098,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "util.py",
+			"settings":
+			{
+				"buffer_size": 3630,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/PatternKeyword.py",
+			"settings":
+			{
+				"buffer_size": 248,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/E/Projects/TestCaseRecommend/TestCaseFinder/src/testCaseFinder.py",
+			"settings":
+			{
+				"buffer_size": 8035,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/copyTestFiles.py",
+			"settings":
+			{
+				"buffer_size": 1628,
+				"line_ending": "Windows"
+			}
+		}
+	],
+	"build_system": "Packages/Python/Python.sublime-build",
+	"command_palette":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"console":
+	{
+		"height": 0.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/E/Projects/TestCaseRecommend/HeuristicFinder/src/util.py",
+		"/E/Projects/TestCaseRecommend/HeuristicFinder/src/PatternKeyword.py",
+		"/E/Projects/TestCaseRecommend/HeuristicFinder/src/heuristicDetection.py",
+		"/C/Users/ags1098/Documents/libraryFinder.py",
+		"/E/Projects/ImportFinder/ImportFinder.py",
+		"/E/Projects/TestCaseRecommend/HeuristicFinder/src/heuristicFinder.py",
+		"/E/Projects/TestCaseRecommend/HeuristicFinder/src/fileExtractor.py",
+		"/E/Projects/TestCaseRecommend/TestCaseFinder/src/testCaseFinder.py",
+		"/E/Projects/TestCaseRecommend/TestCaseFinder/src/utilities.py",
+		"/E/Projects/TestCaseRecommend/TestCaseFinder/src/TestFrameworkToken.py",
+		"/E/Projects/TestCaseRecommend/TestCaseFinder/src/TestFileResult.py",
+		"/E/Projects/TestCaseRecommend/TestCaseFinder/src/fileExtractor.py"
+	],
+	"find":
+	{
+		"height": 34.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"projFiles",
+			".deps",
+			"testFiles",
+			"keywords",
+			"threadData.patter",
+			"obtainDepe",
+			"detect"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": false
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "LibraryFinder.py",
+					"settings":
+					{
+						"buffer_size": 2271,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2271,
+								2271
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 496.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "importDetection.py",
+					"settings":
+					{
+						"buffer_size": 3160,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								322,
+								322
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 630.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/heuristicFinder.py",
+					"settings":
+					{
+						"buffer_size": 6970,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3093,
+								3093
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 645.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/heuristicDetection.py",
+					"settings":
+					{
+						"buffer_size": 8098,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								5871,
+								5880
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2086.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "util.py",
+					"settings":
+					{
+						"buffer_size": 3630,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/PatternKeyword.py",
+					"settings":
+					{
+						"buffer_size": 248,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "/E/Projects/TestCaseRecommend/TestCaseFinder/src/testCaseFinder.py",
+					"settings":
+					{
+						"buffer_size": 8035,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								168,
+								155
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "/E/Projects/TestCaseRecommend/HeuristicFinder/src/copyTestFiles.py",
+					"settings":
+					{
+						"buffer_size": 1628,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								855,
+								855
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 0.0
+	},
+	"input":
+	{
+		"height": 31.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 100.0
+	},
+	"replace":
+	{
+		"height": 0.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 150.0,
+	"status_bar_visible": true
+}

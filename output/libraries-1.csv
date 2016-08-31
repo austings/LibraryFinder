@@ -1,0 +1,8 @@
+Project,FilePath,Library
+1020,S:/Austin/Projects/LibraryFinder/resource/projects/1020/CaliforniaSurfDataApp/main.py,import sys
+1020,S:/Austin/Projects/LibraryFinder/resource/projects/1020/CaliforniaSurfDataApp/main.py,import os
+1020,S:/Austin/Projects/LibraryFinder/resource/projects/1020/CaliforniaSurfDataApp/main.py,from app import app
+1020,S:/Austin/Projects/LibraryFinder/resource/projects/1020/CaliforniaSurfDataApp/main.py,import views
+10322,S:/Austin/Projects/LibraryFinder/resource/projects/10322/JGActionSheet/JGActionSheet Tests/JGActionSheet Tests/main.m,#import <UIKit/UIKit.h>
+10322,S:/Austin/Projects/LibraryFinder/resource/projects/10322/JGActionSheet/JGActionSheet Tests/JGActionSheet Tests/main.m,#import "AppDelegate.h"
+20878,S:/Austin/Projects/LibraryFinder/resource/projects/20878/ckeditor-dev/plugins/ajax/plugin.js,<script src="displaydate.js" type="text/javascript">
